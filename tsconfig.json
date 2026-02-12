@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    /* Configurações de Saída e Versão */
+    "target": "ES2020",                /* Node 20+ suporta ES2020 nativamente */
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,           /* Permite importar pacotes como express e bcrypt */
+    "resolveJsonModule": true,         /* Permite importar arquivos .json diretamente */
+    "forceConsistentCasingInFileNames": true, /* Evita erros de maiúsculas/minúsculas no Linux (Render) */
+    
+    /* Pastas */
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "baseUrl": "./",
+
+    /* Regras de Tipagem */
+    "strict": true,
+    "noImplicitAny": false,            /* Permite maior flexibilidade na migração de código antigo */
+    "skipLibCheck": true,              /* Ignora erros de tipos dentro da pasta node_modules */
+    "noEmitOnError": false,            /* Tenta gerar o código mesmo se houver pequenos avisos de tipo */
+    
+    /* Performance de Build */
+    "incremental": true,               /* Faz builds subsequentes serem muito mais rápidos */
+    "skipDefaultLibCheck": true
+  },
+  "ts-node": {
+    "transpileOnly": true,             /* Execução em dev mais rápida */
+    "esm": false
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
