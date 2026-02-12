@@ -54,9 +54,12 @@ router.use('/', dashboardRoutes);
 router.use('/tasks', taskRoutes);
 
 // 7. Rota 404 (Fallback)
-// Se nenhuma rota acima bater, cai aqui.
-router.use('*', (req, res) => {
-  res.status(404).json({ error: `Rota não encontrada: ${req.originalUrl}` });
+// No Express 5, removemos o '*' e deixamos apenas a função. 
+// Isso fará com que qualquer rota não mapeada acima caia aqui.
+router.use((req, res) => {
+  res.status(404).json({ 
+    error: `Rota não encontrada: ${req.originalUrl}` 
+  });
 });
 
 export default router;
