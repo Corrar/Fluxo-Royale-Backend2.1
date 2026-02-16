@@ -20,6 +20,7 @@ export const getSeparations = async (req: Request, res: Response) => {
                  'name', p.name, 
                  'sku', p.sku, 
                  'unit', p.unit,
+                 'unit_price', COALESCE(p.unit_price, 0),
                  'stock', json_build_object(
                     'quantity_on_hand', COALESCE(st.quantity_on_hand, 0),
                     'quantity_reserved', COALESCE(st.quantity_reserved, 0)
