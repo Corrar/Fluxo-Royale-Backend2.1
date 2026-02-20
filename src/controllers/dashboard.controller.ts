@@ -280,7 +280,6 @@ export const getLogs = async (req: Request, res: Response) => {
 };
 
 // --- CONFIGURAÇÃO DE NOTIFICAÇÕES (PUSH) ---
-
 export const getPushKey = (req: Request, res: Response) => {
     // Retorna a chave pública para o Front-end se registrar
     res.json({ publicKey: vapidKeys.publicKey });
@@ -305,4 +304,82 @@ export const subscribePush = async (req: Request, res: Response) => {
       console.error("Erro Push Subscribe:", error);
       res.status(500).json({ error: 'Erro ao salvar subscrição push' });
     }
+};
+
+// ==========================================
+// --- NOVA ROTA: DADOS DA PÁGINA INICIAL ---
+// ==========================================
+export const getHomeDashboard = async (req: Request, res: Response) => {
+  try {
+    const queries = [
+      // 0: Patrimônio (Soma do valor de todos os itens em estoque)
+      pool.query(`
+        SELECT SUM(COALESCE(s.quantity_on_hand, 0) * COALESCE(p.unit_price, 0)) as total_value
+        FROM stock s JOIN products p ON s.product_id = p.id WHERE p.active = true
+      `),
+      // 1: Ativos (Quantidade total de itens físicos guardados)
+      pool.query(`
+        SELECT SUM(COALESCE(quantity_on_hand, 0)) as total_items
+        FROM stock s JOIN products p ON s.product_id = p.id WHERE p.active = true
+      `),
+      // 2: Críticos (Estoque atual menor que o mínimo)
+      pool.query(`
+        SELECT COUNT(*) FROM products p 
+        LEFT JOIN stock s ON p.id = s.product_id 
+        WHERE p.min_stock IS NOT NULL 
+          AND (COALESCE(s.quantity_on_hand, 0) - COALESCE(s.quantity_reserved, 0)) < p.min_stock 
+          AND p.active = true
+      `),
+      // 3: Obsoletos (Produtos com estoque > 0, mas sem NENHUMA saída nos últimos 90 dias)
+      pool.query(`
+        SELECT COUNT(DISTINCT s.product_id)
+        FROM stock s
+        WHERE s.quantity_on_hand > 0 
+        AND NOT EXISTS (
+          SELECT 1 FROM separation_items si 
+          JOIN separations sep ON si.separation_id = sep.id 
+          WHERE si.product_id = s.product_id 
+          AND sep.created_at >= NOW() - INTERVAL '90 days'
+        )
+      `),
+      // 4: Destaques (Buscando da tabela nova configurável pelo Admin)
+      pool.query(`SELECT title, description as desc, bg, icon, border FROM highlights WHERE is_active = true ORDER BY created_at DESC LIMIT 5`),
+      // 5: Atividades Recentes (Os últimos 3 logs do sistema)
+      pool.query(`
+        SELECT a.action, a.created_at, COALESCE(p.name, u.email, 'Sistema') as user_name
+        FROM audit_logs a 
+        LEFT JOIN users u ON a.user_id = u.id 
+        LEFT JOIN profiles p ON u.id = p.id 
+        ORDER BY a.created_at DESC LIMIT 3
+      `)
+    ];
+
+    const [valueRes, itemsRes, critRes, obsRes, highlightsRes, activitiesRes] = await Promise.all(queries);
+
+    // Mapeamos a atividade para o formato amigável para a Home
+    const formattedActivities = activitiesRes.rows.map(a => {
+      // Formata a data para ex: "10:30"
+      const timeStr = new Date(a.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return {
+        user: a.user_name.split(' ')[0], // Apenas o primeiro nome
+        action: a.action.replace(/_/g, ' '), // Remove os underscores (ex: CREATE_PRODUCT vira CREATE PRODUCT)
+        time: timeStr
+      };
+    });
+
+    res.json({
+      stats: {
+        patrimonio: parseFloat(valueRes.rows[0]?.total_value || '0'),
+        ativos: parseInt(itemsRes.rows[0]?.total_items || '0'),
+        criticos: parseInt(critRes.rows[0]?.count || '0'),
+        obsoletos: parseInt(obsRes.rows[0]?.count || '0'),
+      },
+      highlights: highlightsRes.rows,
+      activities: formattedActivities
+    });
+
+  } catch (error: any) {
+    console.error("Erro Home Dashboard:", error);
+    res.status(500).json({ error: 'Erro ao carregar dados da página inicial' });
+  }
 };
