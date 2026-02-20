@@ -22,6 +22,10 @@ router.use(authenticate);
 // Salva a "assinatura" do navegador do usuário no banco
 router.post('/notifications/subscribe', DashController.subscribePush);
 
+// --- Dados da Página Inicial (NOVA ROTA) ---
+// Retorna Patrimônio, Ativos, Críticos, Obsoletos, Destaques e Atividades
+router.get('/home', DashController.getHomeDashboard);
+
 // --- KPIs e Estatísticas (Cards do Topo) ---
 // Retorna contagens de produtos, alertas de estoque, pedidos abertos, etc.
 router.get('/stats', DashController.getStats);
