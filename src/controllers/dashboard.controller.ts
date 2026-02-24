@@ -343,7 +343,7 @@ export const getHomeDashboard = async (req: Request, res: Response) => {
         )
       `),
       // 4: Destaques (Buscando da tabela nova configurável pelo Admin)
-      pool.query(`SELECT title, description as desc, bg, icon, border FROM highlights WHERE is_active = true ORDER BY created_at DESC LIMIT 5`),
+      pool.query(`SELECT id, title, description as desc, bg, icon, border FROM highlights WHERE is_active = true ORDER BY created_at DESC LIMIT 5`),
       // 5: Atividades Recentes (Os últimos 3 logs do sistema)
       pool.query(`
         SELECT a.action, a.created_at, COALESCE(p.name, u.email, 'Sistema') as user_name
@@ -381,5 +381,65 @@ export const getHomeDashboard = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error("Erro Home Dashboard:", error);
     res.status(500).json({ error: 'Erro ao carregar dados da página inicial' });
+  }
+};
+
+// ==========================================
+// --- GESTÃO DE DESTAQUES (BANNERS) ---
+// ==========================================
+
+export const getHighlights = async (req: Request, res: Response) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, title, description as desc, icon, bg, border, is_active FROM highlights ORDER BY created_at DESC'
+    );
+    res.json(rows);
+  } catch (error: any) {
+    console.error("Erro ao buscar destaques:", error);
+    res.status(500).json({ error: 'Erro ao buscar destaques' });
+  }
+};
+
+export const createHighlight = async (req: Request, res: Response) => {
+  const { title, desc, icon, bg, border } = req.body;
+  const userId = (req as any).user.id;
+
+  try {
+    // Segurança: Apenas admins podem criar
+    const adminCheck = await pool.query("SELECT role FROM profiles WHERE id = $1", [userId]);
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
+    }
+
+    const { rows } = await pool.query(
+      `INSERT INTO highlights (title, description, icon, bg, border, is_active) 
+       VALUES ($1, $2, $3, $4, $5, true) 
+       RETURNING id, title, description as desc, icon, bg, border`,
+      [title, desc, icon, bg, border]
+    );
+    
+    res.status(201).json(rows[0]);
+  } catch (error: any) {
+    console.error("Erro ao criar destaque:", error);
+    res.status(500).json({ error: 'Erro ao criar destaque' });
+  }
+};
+
+export const deleteHighlight = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const userId = (req as any).user.id;
+
+  try {
+    // Segurança: Apenas admins podem deletar
+    const adminCheck = await pool.query("SELECT role FROM profiles WHERE id = $1", [userId]);
+    if (adminCheck.rows.length === 0 || adminCheck.rows[0].role !== 'admin') {
+      return res.status(403).json({ error: 'Acesso negado.' });
+    }
+
+    await pool.query('DELETE FROM highlights WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error("Erro ao excluir destaque:", error);
+    res.status(500).json({ error: 'Erro ao excluir destaque' });
   }
 };
