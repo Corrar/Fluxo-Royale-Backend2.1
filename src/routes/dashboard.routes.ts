@@ -45,4 +45,17 @@ router.get('/reports/available-dates', DashController.getAvailableDates);
 // Nota: O Controller faz uma verificação adicional se o usuário tem role='admin'.
 router.get('/admin/logs', DashController.getLogs);
 
+// ==========================================
+// --- GESTÃO DE DESTAQUES (BANNERS) ---
+// ==========================================
+
+// Lista todos os destaques criados
+router.get('/highlights', DashController.getHighlights);
+
+// Cria um novo destaque (Apenas Admin - Validado no Controller)
+router.post('/highlights', DashController.createHighlight);
+
+// Deleta um destaque específico (Apenas Admin - Validado no Controller)
+router.delete('/highlights/:id', DashController.deleteHighlight);
+
 export default router;
