@@ -5,7 +5,25 @@ import { getIO } from '../utils/socket';
 export const getTasks = async (req: Request, res: Response) => {
   try {
     const result = await db.query('SELECT * FROM eletrica_tasks ORDER BY created_at DESC');
-    res.json(result.rows);
+    
+    // Mapeamos do formato do Banco (snake_case) para o Frontend (camelCase)
+    const mappedRows = result.rows.map(row => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      category: row.category,
+      priority: row.priority,
+      checklist: row.checklist,
+      tags: row.tags,
+      imageUrl: row.image_url,
+      dueDate: row.due_date,
+      completed: row.completed,
+      completedAt: row.completed_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+
+    res.json(mappedRows);
   } catch (error) {
     console.error('Erro ao buscar tarefas da elétrica:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
@@ -16,30 +34,30 @@ export const createTask = async (req: Request, res: Response) => {
   try {
     const { title, description, category, priority, checklist, tags, imageUrl, dueDate } = req.body;
     
-    // Insere no banco e usa JSON.stringify para os arrays e grupos do checklist
     const result = await db.query(
       `INSERT INTO eletrica_tasks 
         (title, description, category, priority, checklist, tags, image_url, due_date) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
       [
         title, 
-        description, 
+        description || '', 
         category || 'blue', 
         priority || 'medium', 
-        JSON.stringify(checklist || []), 
-        JSON.stringify(tags || []), 
-        imageUrl, 
-        dueDate
+        checklist ? JSON.stringify(checklist) : '[]', 
+        tags ? JSON.stringify(tags) : '[]', 
+        imageUrl || null, 
+        dueDate || null
       ]
     );
 
-    // Avisa o Frontend para recarregar o quadro instantaneamente
     const io = getIO();
-    if (io) {
-      io.emit('eletrica_tasks_updated');
-    }
+    if (io) io.emit('eletrica_tasks_updated');
 
-    res.status(201).json(result.rows[0]);
+    // Devolve formatado para o Frontend processar instantaneamente
+    const row = result.rows[0];
+    res.status(201).json({
+      ...row, imageUrl: row.image_url, dueDate: row.due_date, createdAt: row.created_at
+    });
   } catch (error) {
     console.error('Erro ao criar tarefa da elétrica:', error);
     res.status(500).json({ error: 'Erro ao criar tarefa' });
@@ -49,10 +67,9 @@ export const createTask = async (req: Request, res: Response) => {
 export const updateTask = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { title, description, category, priority, checklist, tags, completed, imageUrl, dueDate, logAction, logDetails } = req.body;
-  const userId = (req as any).user?.id; // ID de quem está a fazer a alteração
+  const userId = (req as any).user?.id;
 
   try {
-    // 1. Busca a tarefa atual para manter o completed_at correto
     const currentTask = await db.query('SELECT * FROM eletrica_tasks WHERE id = $1', [id]);
     if (currentTask.rows.length === 0) {
       return res.status(404).json({ error: 'Tarefa não encontrada' });
@@ -62,7 +79,6 @@ export const updateTask = async (req: Request, res: Response) => {
     const updatedCompleted = completed !== undefined ? completed : task.completed;
     const completedAt = updatedCompleted && !task.completed ? new Date() : (updatedCompleted ? task.completed_at : null);
 
-    // 2. Atualiza a tarefa no banco de dados
     const result = await db.query(
       `UPDATE eletrica_tasks 
        SET title = COALESCE($1, title),
@@ -78,40 +94,32 @@ export const updateTask = async (req: Request, res: Response) => {
            updated_at = NOW()
        WHERE id = $11 RETURNING *`,
       [
-        title, 
-        description, 
-        category, 
-        priority, 
+        title, description, category, priority, 
         checklist ? JSON.stringify(checklist) : null, 
         tags ? JSON.stringify(tags) : null, 
-        updatedCompleted, 
-        completedAt, 
-        imageUrl, 
-        dueDate, 
-        id
+        updatedCompleted, completedAt, imageUrl, dueDate, id
       ]
     );
 
-    // 3. SISTEMA DE LOGS DE AUDITORIA 
-    // Se o técnico der 'Check' na caixinha, o Frontend envia o logAction!
+    // Sistema de Logs (Não trava o save se falhar)
     if (logAction && userId) {
        try {
-          // Tentativa de salvar o log (ignora erro se a tabela tiver outro nome no seu BD)
           await db.query(
              `INSERT INTO audit_logs (user_id, action, details) VALUES ($1, $2, $3)`,
              [userId, logAction, logDetails ? JSON.stringify(logDetails) : null]
           );
        } catch (logErr) {
-          console.warn("Aviso: Falha ao gravar log de auditoria.", logErr);
+          console.warn("Falha ao gravar log de auditoria.", logErr);
        }
     }
 
     const io = getIO();
-    if (io) {
-      io.emit('eletrica_tasks_updated');
-    }
+    if (io) io.emit('eletrica_tasks_updated');
 
-    res.json(result.rows[0]);
+    const row = result.rows[0];
+    res.json({
+      ...row, imageUrl: row.image_url, dueDate: row.due_date, createdAt: row.created_at
+    });
   } catch (error) {
     console.error('Erro ao atualizar tarefa da elétrica:', error);
     res.status(500).json({ error: 'Erro ao atualizar tarefa' });
@@ -124,9 +132,7 @@ export const deleteTask = async (req: Request, res: Response) => {
     await db.query('DELETE FROM eletrica_tasks WHERE id = $1', [id]);
     
     const io = getIO();
-    if (io) {
-      io.emit('eletrica_tasks_updated');
-    }
+    if (io) io.emit('eletrica_tasks_updated');
 
     res.json({ message: 'Tarefa excluída com sucesso' });
   } catch (error) {
