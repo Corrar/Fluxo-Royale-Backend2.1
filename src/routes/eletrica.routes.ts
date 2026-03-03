@@ -1,21 +1,24 @@
 import { Router } from 'express';
-import { getTasks, createTask, updateTask, deleteTask, getLists, createList, updateList, deleteList } from '../controllers/eletrica.controller';
+import { 
+  getTasks, createTask, updateTask, deleteTask, 
+  getLists, createList, updateList, deleteList 
+} from '../controllers/eletrica.controller';
 
-// CORREÇÃO: Vamos importar 'verifyToken' que é o nome padrão comum em sistemas NodeJS para verificar a sessão do utilizador
-import { verifyToken } from '../middlewares/auth';
+// CORREÇÃO: Importamos o nome exato que está no seu auth.ts!
+import { authenticate } from '../middlewares/auth';
 
 const router = Router();
 
-// Usa o verifyToken para proteger a rota
-router.use(verifyToken);
+// Usa o 'authenticate' para proteger estas rotas
+router.use(authenticate);
 
-// Listas / Colunas
+// --- Rotas das Listas / Colunas ---
 router.get('/lists', getLists);
 router.post('/lists', createList);
 router.put('/lists/:id', updateList);
 router.delete('/lists/:id', deleteList);
 
-// Cartões
+// --- Rotas dos Cartões ---
 router.get('/', getTasks);
 router.post('/', createTask);
 router.put('/:id', updateTask);
