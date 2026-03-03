@@ -6,6 +6,8 @@ import separationRoutes from './separation.routes';
 import dashboardRoutes from './dashboard.routes';
 import taskRoutes from './task.routes';
 
+import eletricaRoutes from './eletrica.routes':
+
 const router = Router();
 
 // --- Health Check ---
@@ -53,6 +55,8 @@ router.use('/', dashboardRoutes);
 // Captura: /tasks
 router.use('/tasks', taskRoutes);
 
+
+router.use('/eletrica-tasks', eletricaRoutes); 
 // 7. Rota 404 (Fallback)
 // No Express 5, removemos o '*' e deixamos apenas a função. 
 // Isso fará com que qualquer rota não mapeada acima caia aqui.
