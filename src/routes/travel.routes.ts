@@ -1,7 +1,7 @@
 // ficheiro: src/routes/travel.routes.ts
 
 import { Router } from 'express';
-import { auth } from '../middlewares/auth';
+import { authenticate } from '../middlewares/auth'; // ✨ CORREÇÃO: Importado com o nome correto
 import {
   getTravels,
   createTravel,
@@ -18,7 +18,7 @@ const router = Router();
 
 // 🔒 Middleware de Autenticação
 // Garante que apenas utilizadores com login (token válido) possam aceder a estas rotas
-router.use(auth);
+router.use(authenticate); // ✨ CORREÇÃO: Usando a função correta
 
 // ==========================================
 // 🚀 ROTAS PRINCIPAIS DAS VIAGENS
