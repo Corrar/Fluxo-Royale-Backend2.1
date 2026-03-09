@@ -1,7 +1,7 @@
 // ficheiro: src/controllers/travel.controller.ts
 
 import { Request, Response } from 'express';
-import { pool } from '../config/db'; // ✨ CORREÇÃO: Adicionadas as chaves {}
+import { pool } from '../config/db'; // Importação correta com chaves
 
 // ==========================================
 // 🚀 1. LISTAR TODAS AS VIAGENS
@@ -30,7 +30,7 @@ export const getTravels = async (req: Request, res: Response) => {
 // ==========================================
 export const createTravel = async (req: Request, res: Response) => {
   const { title, description } = req.body;
-  const created_by = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste para a tipagem do teu auth.ts
+  const created_by = (req as any).user?.id; // Ajuste para a tipagem do teu auth.ts
 
   try {
     const result = await pool.query(
@@ -94,7 +94,7 @@ export const assignTechnician = async (req: Request, res: Response) => {
 // ==========================================
 export const clockIn = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const user_id = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste de tipagem
+  const user_id = (req as any).user?.id; 
 
   try {
     const result = await pool.query(
@@ -113,7 +113,7 @@ export const clockIn = async (req: Request, res: Response) => {
 // ==========================================
 export const clockOut = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const user_id = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste de tipagem
+  const user_id = (req as any).user?.id; 
 
   try {
     const result = await pool.query(
@@ -139,7 +139,7 @@ export const clockOut = async (req: Request, res: Response) => {
 export const addChecklist = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { description } = req.body;
-  const created_by = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste de tipagem
+  const created_by = (req as any).user?.id; 
 
   try {
     const result = await pool.query(
@@ -179,7 +179,7 @@ export const completeChecklist = async (req: Request, res: Response) => {
 export const sendMessage = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { message, image_url } = req.body;
-  const user_id = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste de tipagem
+  const user_id = (req as any).user?.id; 
 
   try {
     const result = await pool.query(
@@ -190,5 +190,24 @@ export const sendMessage = async (req: Request, res: Response) => {
     res.status(201).json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao enviar mensagem.' });
+  }
+};
+
+// ==========================================
+// 🔄 10. ATUALIZAR STATUS (Drag and Drop)
+// ==========================================
+export const updateTravelStatus = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { status } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE travels SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [status, id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar o status:', error);
+    res.status(500).json({ error: 'Erro ao atualizar o status.' });
   }
 };
