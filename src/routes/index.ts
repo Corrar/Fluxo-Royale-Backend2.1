@@ -5,7 +5,8 @@ import requestRoutes from './request.routes';
 import separationRoutes from './separation.routes';
 import dashboardRoutes from './dashboard.routes';
 import taskRoutes from './task.routes';
-import eletricaRoutes from './eletrica.routes'; // <-- Importação na linha correta!
+import eletricaRoutes from './eletrica.routes'; 
+import travelRoutes from './travel.routes'; // ✨ NOVA: Importação das rotas de viagens
 
 const router = Router();
 
@@ -31,6 +32,9 @@ router.use('/tasks', taskRoutes);
 
 // Rota do Kanban da Elétrica
 router.use('/eletrica-tasks', eletricaRoutes);
+
+// ✨ NOVA: Rota das Viagens Externas
+router.use('/travels', travelRoutes);
 
 router.use((req, res) => {
   res.status(404).json({ error: `Rota não encontrada: ${req.originalUrl}` });
