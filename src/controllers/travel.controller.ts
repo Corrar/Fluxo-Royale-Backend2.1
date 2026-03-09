@@ -1,7 +1,7 @@
 // ficheiro: src/controllers/travel.controller.ts
 
 import { Request, Response } from 'express';
-import pool from '../config/db'; // O teu ficheiro de conexão com a base de dados
+import { pool } from '../config/db'; // ✨ CORREÇÃO: Adicionadas as chaves {}
 
 // ==========================================
 // 🚀 1. LISTAR TODAS AS VIAGENS
@@ -30,7 +30,7 @@ export const getTravels = async (req: Request, res: Response) => {
 // ==========================================
 export const createTravel = async (req: Request, res: Response) => {
   const { title, description } = req.body;
-  const created_by = req.user?.id; // Assumindo que o middleware de auth coloca o user aqui
+  const created_by = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste para a tipagem do teu auth.ts
 
   try {
     const result = await pool.query(
@@ -76,7 +76,7 @@ export const getTravelById = async (req: Request, res: Response) => {
 // ==========================================
 export const assignTechnician = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { user_id } = req.body; // ID do técnico a ser atribuído
+  const { user_id } = req.body; 
 
   try {
     const result = await pool.query(
@@ -94,10 +94,9 @@ export const assignTechnician = async (req: Request, res: Response) => {
 // ==========================================
 export const clockIn = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const user_id = req.user?.id; // Técnico logado
+  const user_id = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste de tipagem
 
   try {
-    // Registra a hora atual como check_in
     const result = await pool.query(
       `INSERT INTO travel_time_logs (travel_id, user_id, check_in) 
        VALUES ($1, $2, NOW()) RETURNING *`,
@@ -114,10 +113,9 @@ export const clockIn = async (req: Request, res: Response) => {
 // ==========================================
 export const clockOut = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const user_id = req.user?.id;
+  const user_id = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste de tipagem
 
   try {
-    // Atualiza o último registro de entrada deste usuário nesta viagem que ainda não tem saída
     const result = await pool.query(
       `UPDATE travel_time_logs 
        SET check_out = NOW() 
@@ -141,7 +139,7 @@ export const clockOut = async (req: Request, res: Response) => {
 export const addChecklist = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { description } = req.body;
-  const created_by = req.user?.id;
+  const created_by = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste de tipagem
 
   try {
     const result = await pool.query(
@@ -160,7 +158,7 @@ export const addChecklist = async (req: Request, res: Response) => {
 // ==========================================
 export const completeChecklist = async (req: Request, res: Response) => {
   const { id, checklistId } = req.params;
-  const { is_completed } = req.body; // true ou false
+  const { is_completed } = req.body; 
 
   try {
     const result = await pool.query(
@@ -181,7 +179,7 @@ export const completeChecklist = async (req: Request, res: Response) => {
 export const sendMessage = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { message, image_url } = req.body;
-  const user_id = req.user?.id;
+  const user_id = (req as any).user?.id; // ✨ CORREÇÃO: Ajuste de tipagem
 
   try {
     const result = await pool.query(
