@@ -11,7 +11,8 @@ import {
   clockOut,
   addChecklist,
   completeChecklist,
-  sendMessage
+  sendMessage,
+  updateTravelStatus // ✨ NOVA FUNÇÃO IMPORTADA AQUI
 } from '../controllers/travel.controller';
 
 const router = Router();
@@ -32,6 +33,9 @@ router.post('/', createTravel);
 
 // GET /api/travels/:id -> Busca todos os detalhes de uma viagem específica
 router.get('/:id', getTravelById);
+
+// PUT /api/travels/:id/status -> Atualiza o status (Arrastar cartão / Drag and Drop) ✨ NOVA ROTA
+router.put('/:id/status', updateTravelStatus);
 
 // ==========================================
 // 👨‍🔧 ROTAS DE ATRIBUIÇÃO E CHECKLIST (Líderes)
