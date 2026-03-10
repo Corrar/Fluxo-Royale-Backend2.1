@@ -1,7 +1,7 @@
 // ficheiro: src/routes/travel.routes.ts
 
 import { Router } from 'express';
-import { authenticate } from '../middlewares/auth'; // ✨ CORREÇÃO: Importado com o nome correto
+import { authenticate } from '../middlewares/auth'; 
 import {
   getTravels,
   createTravel,
@@ -9,17 +9,16 @@ import {
   assignTechnician,
   clockIn,
   clockOut,
-  addChecklist,
-  completeChecklist,
   sendMessage,
-  updateTravelStatus // ✨ NOVA FUNÇÃO IMPORTADA AQUI
+  updateTravelStatus,
+  updateTravelDetails // ✨ A NOSSA NOVA FUNÇÃO DE AUTOSAVE
 } from '../controllers/travel.controller';
 
 const router = Router();
 
 // 🔒 Middleware de Autenticação
 // Garante que apenas utilizadores com login (token válido) possam aceder a estas rotas
-router.use(authenticate); // ✨ CORREÇÃO: Usando a função correta
+router.use(authenticate); 
 
 // ==========================================
 // 🚀 ROTAS PRINCIPAIS DAS VIAGENS
@@ -34,21 +33,21 @@ router.post('/', createTravel);
 // GET /api/travels/:id -> Busca todos os detalhes de uma viagem específica
 router.get('/:id', getTravelById);
 
-// PUT /api/travels/:id/status -> Atualiza o status (Arrastar cartão / Drag and Drop) ✨ NOVA ROTA
+// PUT /api/travels/:id/status -> Atualiza a coluna (Arrastar cartão / Drag and Drop)
 router.put('/:id/status', updateTravelStatus);
 
+// ✨ NOVA ROTA: AutoSave (Atualiza título, descrição, checklists, etiquetas de uma vez)
+router.put('/:id/details', updateTravelDetails);
+
 // ==========================================
-// 👨‍🔧 ROTAS DE ATRIBUIÇÃO E CHECKLIST (Líderes)
+// 👨‍🔧 ROTAS DE ATRIBUIÇÃO (Líderes)
 // ==========================================
 
 // POST /api/travels/:id/technicians -> Adiciona um técnico à viagem
 router.post('/:id/technicians', assignTechnician);
 
-// POST /api/travels/:id/checklists -> Adiciona uma tarefa extra (checklist)
-router.post('/:id/checklists', addChecklist);
-
 // ==========================================
-// ⏱️ ROTAS DO TÉCNICO (Bate-Ponto e Ações)
+// ⏱️ ROTAS DO TÉCNICO (Bate-Ponto)
 // ==========================================
 
 // POST /api/travels/:id/checkin -> Bater o ponto (Entrada)
@@ -56,9 +55,6 @@ router.post('/:id/checkin', clockIn);
 
 // POST /api/travels/:id/checkout -> Bater o ponto (Saída)
 router.post('/:id/checkout', clockOut);
-
-// PUT /api/travels/:id/checklists/:checklistId -> Marcar tarefa extra como feita
-router.put('/:id/checklists/:checklistId', completeChecklist);
 
 // ==========================================
 // 💬 ROTAS DO CHAT E OBSERVAÇÕES
