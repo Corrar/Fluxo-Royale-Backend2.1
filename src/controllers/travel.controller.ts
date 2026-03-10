@@ -211,3 +211,37 @@ export const updateTravelStatus = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Erro ao atualizar o status.' });
   }
 };
+
+// ==========================================
+// ✏️ 11. EDITAR TÍTULO DA VIAGEM
+// ==========================================
+export const updateTravelTitle = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { title } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE travels SET title = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
+      [title, id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao atualizar o título.' });
+  }
+};
+
+// ==========================================
+// ✏️ 12. EDITAR NOME DO ITEM DO CHECKLIST
+// ==========================================
+export const updateChecklistDesc = async (req: Request, res: Response) => {
+  const { id, checklistId } = req.params;
+  const { description } = req.body;
+  try {
+    const result = await pool.query(
+      `UPDATE travel_checklists SET description = $1 WHERE id = $2 AND travel_id = $3 RETURNING *`,
+      [description, checklistId, id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao atualizar o nome da tarefa.' });
+  }
+};
