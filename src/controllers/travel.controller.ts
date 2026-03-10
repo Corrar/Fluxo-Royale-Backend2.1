@@ -219,7 +219,7 @@ export const updateTravelStatus = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// 👨‍🔧 8. ATRIBUIR TÉCNICO E BATER PONTO
+// 👨‍🔧 8. ATRIBUIR TÉCNICO
 // ==========================================
 export const assignTechnician = async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -234,7 +234,6 @@ export const assignTechnician = async (req: Request, res: Response) => {
   } catch (error) { res.status(500).json({ error: 'Erro ao atribuir.' }); }
 };
 
-// ✨ NOVA FUNÇÃO AQUI: Remover o técnico da viagem
 export const removeTechnician = async (req: Request, res: Response) => {
   const { id, userId } = req.params;
   try {
@@ -250,23 +249,51 @@ export const removeTechnician = async (req: Request, res: Response) => {
   }
 };
 
+// ==========================================
+// ⏰ 9. BATER PONTO COM GEOLOCALIZAÇÃO
+// ==========================================
 export const clockIn = async (req: Request, res: Response) => {
   const { id } = req.params;
+  const { lat, lng } = req.body; // Recebe as coordenadas do frontend
   const user_id = (req as any).user?.id; 
   try {
-    const result = await pool.query(`INSERT INTO travel_time_logs (travel_id, user_id, check_in) VALUES ($1, $2, NOW()) RETURNING *`, [id, user_id]);
+    const result = await pool.query(
+      `INSERT INTO travel_time_logs (travel_id, user_id, check_in, check_in_lat, check_in_lng) 
+       VALUES ($1, $2, NOW(), $3, $4) RETURNING *`, 
+      [id, user_id, lat || null, lng || null]
+    );
+    
+    const io = getIO();
+    if (io) io.emit('travel_board_updated');
+    
     res.status(201).json(result.rows[0]);
-  } catch (error) { res.status(500).json({ error: 'Erro ao dar entrada.' }); }
+  } catch (error) { 
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao dar entrada.' }); 
+  }
 };
 
 export const clockOut = async (req: Request, res: Response) => {
   const { id } = req.params;
+  const { lat, lng } = req.body; // Recebe as coordenadas de saída
   const user_id = (req as any).user?.id; 
   try {
-    const result = await pool.query(`UPDATE travel_time_logs SET check_out = NOW() WHERE travel_id = $1 AND user_id = $2 AND check_out IS NULL RETURNING *`, [id, user_id]);
+    const result = await pool.query(
+      `UPDATE travel_time_logs 
+       SET check_out = NOW(), check_out_lat = $1, check_out_lng = $2 
+       WHERE travel_id = $3 AND user_id = $4 AND check_out IS NULL RETURNING *`, 
+      [lat || null, lng || null, id, user_id]
+    );
     if (result.rowCount === 0) return res.status(400).json({ error: 'Ponto não aberto.' });
+    
+    const io = getIO();
+    if (io) io.emit('travel_board_updated');
+    
     res.json(result.rows[0]);
-  } catch (error) { res.status(500).json({ error: 'Erro ao dar saída.' }); }
+  } catch (error) { 
+    console.error(error);
+    res.status(500).json({ error: 'Erro ao dar saída.' }); 
+  }
 };
 
 export const sendMessage = async (req: Request, res: Response) => {
