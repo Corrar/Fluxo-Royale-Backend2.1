@@ -7,13 +7,14 @@ import {
   createTravel,
   getTravelById,
   assignTechnician,
+  removeTechnician,    // ✨ ADICIONADO: Importação da nova função
   clockIn,
   clockOut,
   sendMessage,
   updateTravelStatus,
   updateTravelDetails,
-  deleteTravel,        // ✨ NOVA
-  toggleChecklistItem  // ✨ NOVA
+  deleteTravel,        
+  toggleChecklistItem  
 } from '../controllers/travel.controller';
 
 const router = Router();
@@ -29,16 +30,16 @@ router.get('/', getTravels);
 router.post('/', createTravel);
 router.get('/:id', getTravelById);
 
-// ✨ NOVA: Excluir viagem
+// Excluir viagem
 router.delete('/:id', deleteTravel);
 
-// ✨ ATUALIZADO: Rota base PUT em vez de /details para combinar com o Frontend Autosave
+// Rota base PUT em vez de /details para combinar com o Frontend Autosave
 router.put('/:id', updateTravelDetails);
 
 // Atualiza a coluna (Arrastar cartão / Drag and Drop)
 router.put('/:id/status', updateTravelStatus);
 
-// ✨ NOVA: Toggle rápido para o utilizador/viajante marcar a tarefa como feita
+// Toggle rápido para o utilizador/viajante marcar a tarefa como feita
 router.put('/:id/checklist/:groupId/item/:itemId/toggle', toggleChecklistItem);
 
 // ==========================================
@@ -46,6 +47,10 @@ router.put('/:id/checklist/:groupId/item/:itemId/toggle', toggleChecklistItem);
 // ==========================================
 
 router.post('/:id/technicians', assignTechnician);
+
+// ✨ ADICIONADO: Rota para remover um técnico da viagem
+router.delete('/:id/technicians/:userId', removeTechnician);
+
 router.post('/:id/checkin', clockIn);
 router.post('/:id/checkout', clockOut);
 router.post('/:id/messages', sendMessage);
