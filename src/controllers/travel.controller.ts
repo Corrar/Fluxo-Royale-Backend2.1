@@ -76,7 +76,7 @@ export const getTravelById = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// ✨ 4. AUTO-SAVE (Mágica da Edição e Checklists)
+// ✨ 4. AUTO-SAVE (Mágica da Edição e Checklists - COM CAST JSONB)
 // ==========================================
 export const updateTravelDetails = async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -91,9 +91,9 @@ export const updateTravelDetails = async (req: Request, res: Response) => {
          priority = COALESCE($3, priority), 
          due_date = $4, 
          cover_url = $5,
-         tags = COALESCE($6, tags), 
-         checklist_groups = COALESCE($7, checklist_groups), 
-         attachments = COALESCE($8, attachments), 
+         tags = COALESCE($6::jsonb, tags), 
+         checklist_groups = COALESCE($7::jsonb, checklist_groups), 
+         attachments = COALESCE($8::jsonb, attachments), 
          updated_at = NOW()
        WHERE id = $9 RETURNING *`,
       [
