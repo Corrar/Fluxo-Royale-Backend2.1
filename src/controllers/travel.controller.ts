@@ -1,17 +1,19 @@
 // ficheiro: src/controllers/travel.controller.ts
 
 import { Request, Response } from 'express';
-import { pool } from '../config/db'; // Importação correta com chaves
+import { pool } from '../config/db';
 
 // ==========================================
-// 🚀 1. LISTAR TODAS AS VIAGENS
+// 🚀 1. LISTAR TODAS AS VIAGENS (Com campos JSON)
 // ==========================================
 export const getTravels = async (req: Request, res: Response) => {
   try {
     const result = await pool.query(`
       SELECT t.*, 
+        COALESCE(t.checklist_groups, '[]'::jsonb) as checklists,
+        COALESCE(t.tags, '[]'::jsonb) as tags,
+        COALESCE(t.attachments, '[]'::jsonb) as attachments,
         (SELECT json_agg(tt) FROM travel_technicians tt WHERE tt.travel_id = t.id) as technicians,
-        (SELECT json_agg(tc) FROM travel_checklists tc WHERE tc.travel_id = t.id) as checklists,
         (SELECT json_agg(tl) FROM travel_time_logs tl WHERE tl.travel_id = t.id) as time_logs,
         (SELECT json_agg(tm) FROM travel_messages tm WHERE tm.travel_id = t.id) as messages
       FROM travels t
@@ -30,7 +32,7 @@ export const getTravels = async (req: Request, res: Response) => {
 // ==========================================
 export const createTravel = async (req: Request, res: Response) => {
   const { title, description } = req.body;
-  const created_by = (req as any).user?.id; // Ajuste para a tipagem do teu auth.ts
+  const created_by = (req as any).user?.id;
 
   try {
     const result = await pool.query(
@@ -46,15 +48,17 @@ export const createTravel = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// 🚀 3. BUSCAR VIAGEM POR ID (Detalhada)
+// 🚀 3. BUSCAR VIAGEM POR ID
 // ==========================================
 export const getTravelById = async (req: Request, res: Response) => {
   const { id } = req.params;
   try {
     const result = await pool.query(`
       SELECT t.*, 
+        COALESCE(t.checklist_groups, '[]'::jsonb) as checklists,
+        COALESCE(t.tags, '[]'::jsonb) as tags,
+        COALESCE(t.attachments, '[]'::jsonb) as attachments,
         (SELECT json_agg(tt) FROM travel_technicians tt WHERE tt.travel_id = t.id) as technicians,
-        (SELECT json_agg(tc) FROM travel_checklists tc WHERE tc.travel_id = t.id) as checklists,
         (SELECT json_agg(tl) FROM travel_time_logs tl WHERE tl.travel_id = t.id) as time_logs,
         (SELECT json_agg(tm) FROM travel_messages tm WHERE tm.travel_id = t.id) as messages
       FROM travels t
@@ -72,7 +76,47 @@ export const getTravelById = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// 👨‍🔧 4. ATRIBUIR TÉCNICO À VIAGEM
+// ✨ 4. AUTO-SAVE (Mágica da Edição e Checklists)
+// ==========================================
+export const updateTravelDetails = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { title, description, priority, due_date, cover_url, tags, checklist_groups, attachments } = req.body;
+  
+  try {
+    const result = await pool.query(
+      `UPDATE travels 
+       SET 
+         title = COALESCE($1, title), 
+         description = $2, 
+         priority = COALESCE($3, priority), 
+         due_date = $4, 
+         cover_url = $5,
+         tags = COALESCE($6, tags), 
+         checklist_groups = COALESCE($7, checklist_groups), 
+         attachments = COALESCE($8, attachments), 
+         updated_at = NOW()
+       WHERE id = $9 RETURNING *`,
+      [
+        title, 
+        description, 
+        priority, 
+        due_date || null, 
+        cover_url || null, 
+        tags ? JSON.stringify(tags) : null, 
+        checklist_groups ? JSON.stringify(checklist_groups) : null, 
+        attachments ? JSON.stringify(attachments) : null, 
+        id
+      ]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro no AutoSave:', error);
+    res.status(500).json({ error: 'Erro ao guardar os detalhes.' });
+  }
+};
+
+// ==========================================
+// 👨‍🔧 5. ATRIBUIR TÉCNICO À VIAGEM
 // ==========================================
 export const assignTechnician = async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -85,12 +129,12 @@ export const assignTechnician = async (req: Request, res: Response) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao atribuir técnico. Ele já pode estar nesta viagem.' });
+    res.status(500).json({ error: 'Erro ao atribuir técnico.' });
   }
 };
 
 // ==========================================
-// ⏱️ 5. BATER PONTO: ENTRADA (Check-in)
+// ⏱️ 6. BATER PONTO: ENTRADA (Check-in)
 // ==========================================
 export const clockIn = async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -109,7 +153,7 @@ export const clockIn = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// ⏱️ 6. BATER PONTO: SAÍDA (Check-out)
+// ⏱️ 7. BATER PONTO: SAÍDA (Check-out)
 // ==========================================
 export const clockOut = async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -134,47 +178,7 @@ export const clockOut = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// 📋 7. ADICIONAR CHECKLIST EXTRA (Líder)
-// ==========================================
-export const addChecklist = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { description } = req.body;
-  const created_by = (req as any).user?.id; 
-
-  try {
-    const result = await pool.query(
-      `INSERT INTO travel_checklists (travel_id, description, created_by) 
-       VALUES ($1, $2, $3) RETURNING *`,
-      [id, description, created_by]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao adicionar tarefa extra.' });
-  }
-};
-
-// ==========================================
-// ✅ 8. CONCLUIR CHECKLIST EXTRA (Técnico)
-// ==========================================
-export const completeChecklist = async (req: Request, res: Response) => {
-  const { id, checklistId } = req.params;
-  const { is_completed } = req.body; 
-
-  try {
-    const result = await pool.query(
-      `UPDATE travel_checklists 
-       SET is_completed = $1, completed_at = CASE WHEN $1 THEN NOW() ELSE NULL END 
-       WHERE id = $2 AND travel_id = $3 RETURNING *`,
-      [is_completed, checklistId, id]
-    );
-    res.json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao atualizar tarefa.' });
-  }
-};
-
-// ==========================================
-// 💬 9. ENVIAR MENSAGEM / IMAGEM (Chat)
+// 💬 8. ENVIAR MENSAGEM / IMAGEM (Chat)
 // ==========================================
 export const sendMessage = async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -194,7 +198,7 @@ export const sendMessage = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// 🔄 10. ATUALIZAR STATUS (Drag and Drop)
+// 🔄 9. ATUALIZAR STATUS (Drag and Drop Kanban)
 // ==========================================
 export const updateTravelStatus = async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -207,41 +211,6 @@ export const updateTravelStatus = async (req: Request, res: Response) => {
     );
     res.json(result.rows[0]);
   } catch (error) {
-    console.error('Erro ao atualizar o status:', error);
     res.status(500).json({ error: 'Erro ao atualizar o status.' });
-  }
-};
-
-// ==========================================
-// ✏️ 11. EDITAR TÍTULO DA VIAGEM
-// ==========================================
-export const updateTravelTitle = async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const { title } = req.body;
-  try {
-    const result = await pool.query(
-      `UPDATE travels SET title = $1, updated_at = NOW() WHERE id = $2 RETURNING *`,
-      [title, id]
-    );
-    res.json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao atualizar o título.' });
-  }
-};
-
-// ==========================================
-// ✏️ 12. EDITAR NOME DO ITEM DO CHECKLIST
-// ==========================================
-export const updateChecklistDesc = async (req: Request, res: Response) => {
-  const { id, checklistId } = req.params;
-  const { description } = req.body;
-  try {
-    const result = await pool.query(
-      `UPDATE travel_checklists SET description = $1 WHERE id = $2 AND travel_id = $3 RETURNING *`,
-      [description, checklistId, id]
-    );
-    res.json(result.rows[0]);
-  } catch (error) {
-    res.status(500).json({ error: 'Erro ao atualizar o nome da tarefa.' });
   }
 };
