@@ -1,8 +1,6 @@
-// ficheiro: src/controllers/travel.controller.ts
-
 import { Request, Response } from 'express';
 import { pool } from '../config/db';
-import { getIO } from '../utils/socket'; // Opcional, para atualizar o ecrã em tempo real
+import { getIO } from '../utils/socket';
 
 // ==========================================
 // 🚀 1. LISTAR TODAS AS VIAGENS
@@ -15,9 +13,9 @@ export const getTravels = async (req: Request, res: Response) => {
         COALESCE(t.tags, '[]'::jsonb) as tags,
         COALESCE(t.attachments, '[]'::jsonb) as attachments,
         COALESCE(t.comments, '[]'::jsonb) as comments,
-        (SELECT json_agg(tt) FROM travel_technicians tt WHERE tt.travel_id = t.id) as technicians,
-        (SELECT json_agg(tl) FROM travel_time_logs tl WHERE tl.travel_id = t.id) as time_logs,
-        (SELECT json_agg(tm) FROM travel_messages tm WHERE tm.travel_id = t.id) as messages
+        COALESCE((SELECT json_agg(tt) FROM travel_technicians tt WHERE tt.travel_id = t.id), '[]'::json) as technicians,
+        COALESCE((SELECT json_agg(tl ORDER BY tl.check_in ASC) FROM travel_time_logs tl WHERE tl.travel_id = t.id), '[]'::json) as time_logs,
+        COALESCE((SELECT json_agg(tm) FROM travel_messages tm WHERE tm.travel_id = t.id), '[]'::json) as messages
       FROM travels t
       ORDER BY t.created_at DESC
     `);
@@ -76,7 +74,10 @@ export const getTravelById = async (req: Request, res: Response) => {
         COALESCE(t.checklist_groups, '[]'::jsonb) as checklists,
         COALESCE(t.tags, '[]'::jsonb) as tags,
         COALESCE(t.attachments, '[]'::jsonb) as attachments,
-        COALESCE(t.comments, '[]'::jsonb) as comments
+        COALESCE(t.comments, '[]'::jsonb) as comments,
+        COALESCE((SELECT json_agg(tt) FROM travel_technicians tt WHERE tt.travel_id = t.id), '[]'::json) as technicians,
+        COALESCE((SELECT json_agg(tl ORDER BY tl.check_in ASC) FROM travel_time_logs tl WHERE tl.travel_id = t.id), '[]'::json) as time_logs,
+        COALESCE((SELECT json_agg(tm) FROM travel_messages tm WHERE tm.travel_id = t.id), '[]'::json) as messages
       FROM travels t
       WHERE t.id = $1
     `, [id]);
