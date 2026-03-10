@@ -139,7 +139,7 @@ export const updateTravelDetails = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// 🗑️ 5. APAGAR VIAGEM (Novo)
+// 🗑️ 5. APAGAR VIAGEM
 // ==========================================
 export const deleteTravel = async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -163,7 +163,7 @@ export const deleteTravel = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// ✅ 6. TOGGLE DE TAREFAS (Para os viajantes picarem tarefas)
+// ✅ 6. TOGGLE DE TAREFAS
 // ==========================================
 export const toggleChecklistItem = async (req: Request, res: Response) => {
   const { id, groupId, itemId } = req.params;
@@ -174,7 +174,6 @@ export const toggleChecklistItem = async (req: Request, res: Response) => {
     let checklists = result.rows[0].checklist_groups || [];
     if (typeof checklists === 'string') checklists = JSON.parse(checklists);
 
-    // Percorre o JSON e altera o completed da tarefa específica
     const updatedChecklists = checklists.map((c: any) => {
         if(c.id === groupId) {
           return {
@@ -198,7 +197,7 @@ export const toggleChecklistItem = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// 🔄 7. ATUALIZAR STATUS (Drag and Drop Kanban)
+// 🔄 7. ATUALIZAR STATUS (Drag and Drop)
 // ==========================================
 export const updateTravelStatus = async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -220,15 +219,35 @@ export const updateTravelStatus = async (req: Request, res: Response) => {
 };
 
 // ==========================================
-// 👨‍🔧 8. ATRIBUIR TÉCNICO E BATER PONTO (Sem alterações)
+// 👨‍🔧 8. ATRIBUIR TÉCNICO E BATER PONTO
 // ==========================================
 export const assignTechnician = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { user_id } = req.body; 
   try {
     const result = await pool.query(`INSERT INTO travel_technicians (travel_id, user_id) VALUES ($1, $2) RETURNING *`, [id, user_id]);
+    
+    const io = getIO();
+    if (io) io.emit('travel_board_updated');
+
     res.status(201).json(result.rows[0]);
   } catch (error) { res.status(500).json({ error: 'Erro ao atribuir.' }); }
+};
+
+// ✨ NOVA FUNÇÃO AQUI: Remover o técnico da viagem
+export const removeTechnician = async (req: Request, res: Response) => {
+  const { id, userId } = req.params;
+  try {
+    await pool.query(`DELETE FROM travel_technicians WHERE travel_id = $1 AND user_id = $2`, [id, userId]);
+    
+    const io = getIO();
+    if (io) io.emit('travel_board_updated');
+
+    res.json({ success: true });
+  } catch (error) { 
+    console.error('Erro ao remover técnico:', error);
+    res.status(500).json({ error: 'Erro ao remover técnico.' }); 
+  }
 };
 
 export const clockIn = async (req: Request, res: Response) => {
