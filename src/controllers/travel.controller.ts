@@ -297,12 +297,25 @@ export const clockOut = async (req: Request, res: Response) => {
   }
 };
 
+// ==========================================
+// 💬 10. MENSAGENS E CHAT (Corrigido com Socket)
+// ==========================================
 export const sendMessage = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { message, image_url } = req.body;
   const user_id = (req as any).user?.id; 
   try {
-    const result = await pool.query(`INSERT INTO travel_messages (travel_id, user_id, message, image_url) VALUES ($1, $2, $3, $4) RETURNING *`, [id, user_id, message, image_url]);
+    const result = await pool.query(
+      `INSERT INTO travel_messages (travel_id, user_id, message, image_url) VALUES ($1, $2, $3, $4) RETURNING *`, 
+      [id, user_id, message, image_url]
+    );
+    
+    // 👇 ADICIONADO AQUI: Avisar a todos do novo envio!
+    const io = getIO();
+    if (io) io.emit('travel_board_updated');
+
     res.status(201).json(result.rows[0]);
-  } catch (error) { res.status(500).json({ error: 'Erro ao enviar.' }); }
+  } catch (error) { 
+    res.status(500).json({ error: 'Erro ao enviar.' }); 
+  }
 };
