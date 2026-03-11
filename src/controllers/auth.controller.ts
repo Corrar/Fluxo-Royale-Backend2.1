@@ -241,7 +241,9 @@ export const updatePermissions = async (req: Request, res: Response) => {
   }
 
   const client = await pool.connect();
+  
   try {
+    // INÍCIO DA TRANSAÇÃO DA BASE DE DADOS
     await client.query('BEGIN');
     
     // Remove todas as permissões antigas desse cargo
@@ -252,17 +254,27 @@ export const updatePermissions = async (req: Request, res: Response) => {
       await client.query('INSERT INTO role_permissions (role, page_key) VALUES ($1, $2)', [role, page]);
     }
     
+    // FIM DA TRANSAÇÃO DA BASE DE DADOS
     await client.query('COMMIT');
-    
-    // Log e Notificação em Tempo Real para atualizar a UI de quem estiver logado
-    await createLog(requesterId, 'UPDATE_PERMISSIONS', { role_target: role, count: permissions.length }, req.ip || '127.0.0.1');
-    getIO().to(role).emit('permissions_updated', permissions);
-    
-    res.json({ success: true });
   } catch (error: any) {
     await client.query('ROLLBACK');
-    res.status(500).json({ error: 'Erro ao salvar permissões' });
+    console.error("Erro ao inserir permissões na BD:", error);
+    return res.status(500).json({ error: 'Erro ao salvar permissões' });
   } finally {
+    // ⚠️ CRÍTICO: Liberta a ligação reservada de volta para o Pool IMEDIATAMENTE.
+    // Isto evita que o banco esgote as ligações disponíveis se chamarmos muitas vezes esta rota.
     client.release();
   }
+
+  // ⚠️ REGISTO SECUNDÁRIO E NOTIFICAÇÕES (Fora da transação)
+  // O log e o socket podem agora usar o `pool` global normalmente sem criar impasses (deadlocks).
+  try {
+    await createLog(requesterId, 'UPDATE_PERMISSIONS', { role_target: role, count: permissions.length }, req.ip || '127.0.0.1');
+    getIO().to(role).emit('permissions_updated', permissions);
+  } catch (err) {
+    // Logamos o erro silenciosamente para o admin, mas informamos o cliente que as permissões foram salvas.
+    console.error("Erro ao registar log de permissões ou notificar Socket:", err);
+  }
+  
+  res.json({ success: true });
 };
