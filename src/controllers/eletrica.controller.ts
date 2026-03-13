@@ -65,25 +65,36 @@ export const deleteList = async (req: Request, res: Response) => {
     const { id } = req.params;
     const userId = (req as any).user?.id;
 
-    // Proteção contra acesso indevido (Apenas Admins)
+    // Proteção contra acesso indevido (Apenas Admins/Gerentes)
     const userResult = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
     const userRole = userResult.rows[0]?.role;
     if (userRole !== 'admin' && userRole !== 'gerente') {
       return res.status(403).json({ error: 'Apenas administradores podem excluir listas inteiras.' });
     }
 
-    // Busca o nome da lista ANTES de a apagar (para registar na auditoria)
+    // 1. Busca o nome da lista ANTES de a apagar
     const listRes = await pool.query('SELECT title FROM eletrica_lists WHERE id = $1', [id]);
     const listTitle = listRes.rows[0]?.title || id;
 
-    // Apaga tarefas e a lista
+    // 2. BACKUP: Busca todas as tarefas que estão lá dentro antes de destruir tudo
+    const tasksRes = await pool.query('SELECT * FROM eletrica_tasks WHERE list_id = $1', [id]);
+    const tarefasApagadas = tasksRes.rows; 
+
+    // 3. Apaga tarefas e a lista
     await pool.query(`DELETE FROM eletrica_tasks WHERE list_id = $1`, [id]); 
     await pool.query(`DELETE FROM eletrica_lists WHERE id = $1`, [id]); 
 
-    // REGISTO DE AUDITORIA DESTRUTIVA
+    // 4. REGISTO DE AUDITORIA DESTRUTIVA COM BACKUP MASSIVO
     if (userId) {
       await pool.query(`INSERT INTO audit_logs (user_id, action, details) VALUES ($1, $2, $3)`,
-        [userId, 'DELETE_LIST_ELETRICA', JSON.stringify({ deleted_list: listTitle })]
+        [
+          userId, 
+          'DELETE_LIST_ELETRICA', 
+          JSON.stringify({ 
+            mensagem: `Lista "${listTitle}" e ${tarefasApagadas.length} tarefas apagadas.`,
+            backup_tarefas: tarefasApagadas // Array de todas as tarefas para recuperação futura
+          })
+        ]
       );
     }
 
@@ -197,16 +208,29 @@ export const deleteTask = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.id;
     
-    // Busca a tarefa antes de apagar para ter o nome no log
-    const taskRes = await pool.query('SELECT title FROM eletrica_tasks WHERE id = $1', [req.params.id]);
-    const taskTitle = taskRes.rows[0]?.title || req.params.id;
+    // 1. Busca a TAREFA INTEIRA antes de apagar (Backup Snapshot)
+    const taskRes = await pool.query('SELECT * FROM eletrica_tasks WHERE id = $1', [req.params.id]);
+    
+    if (taskRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Tarefa não encontrada' });
+    }
+    
+    const taskData = taskRes.rows[0];
 
+    // 2. Apaga a tarefa da base de dados
     await pool.query('DELETE FROM eletrica_tasks WHERE id = $1', [req.params.id]);
     
-    // REGISTO DE AUDITORIA DESTRUTIVA
+    // 3. REGISTO DE AUDITORIA COM BACKUP EMBUTIDO
     if (userId) {
       await pool.query(`INSERT INTO audit_logs (user_id, action, details) VALUES ($1, $2, $3)`,
-        [userId, 'DELETE_TASK_ELETRICA', JSON.stringify({ task_title: taskTitle })]
+        [
+          userId, 
+          'DELETE_TASK_ELETRICA', 
+          JSON.stringify({ 
+            mensagem: `Tarefa "${taskData.title}" foi apagada.`,
+            dados_recuperacao: taskData // Guarda o JSON exato e completo da base de dados!
+          })
+        ]
       );
     }
 
