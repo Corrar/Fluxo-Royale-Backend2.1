@@ -241,3 +241,86 @@ export const deleteTask = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Erro ao excluir' });
   }
 };
+
+// ============================================================================
+// FUNÇÕES DE RECUPERAÇÃO E MANUTENÇÃO (Adicionadas)
+// ============================================================================
+
+// 1. Resgata tarefas órfãs (que estão no banco mas não aparecem na tela)
+export const rescueOrphanedTasks = async (req: Request, res: Response) => {
+  try {
+    const result = await pool.query(`
+      UPDATE eletrica_tasks 
+      SET list_id = 'list-todo' 
+      WHERE list_id NOT IN (SELECT id FROM eletrica_lists) 
+         OR list_id IS NULL
+      RETURNING *;
+    `);
+
+    const io = getIO();
+    if (io) io.emit('eletrica_board_updated');
+
+    res.json({ 
+      success: true, 
+      message: `${result.rowCount} tarefas órfãs foram resgatadas com sucesso para a coluna "A Fazer"!`,
+      tarefas_recuperadas: result.rows
+    });
+  } catch (error) {
+    console.error('Erro ao resgatar tarefas:', error);
+    res.status(500).json({ error: 'Erro ao tentar resgatar as tarefas perdidas.' });
+  }
+};
+
+// 2. Recupera tarefas apagadas através dos Logs de Auditoria
+export const recoverDeletedListTasks = async (req: Request, res: Response) => {
+  try {
+    const logRes = await pool.query(
+      `SELECT details FROM audit_logs WHERE action = 'DELETE_LIST_ELETRICA' ORDER BY created_at DESC LIMIT 1`
+    );
+
+    if (logRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Nenhum backup de lista apagada foi encontrado.' });
+    }
+
+    let details = logRes.rows[0].details;
+    if (typeof details === 'string') details = JSON.parse(details);
+    const tarefasApagadas = details.backup_tarefas;
+
+    if (!tarefasApagadas || tarefasApagadas.length === 0) {
+      return res.status(404).json({ error: 'O último backup não continha tarefas.' });
+    }
+
+    let restauradasCount = 0;
+
+    for (const task of tarefasApagadas) {
+      await pool.query(
+        `INSERT INTO eletrica_tasks 
+         (title, description, category, priority, checklist, tags, image_url, due_date, list_id, comments, attachments, completed, completed_at, created_at) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          task.title, task.description, task.category, task.priority, 
+          task.checklist ? JSON.stringify(task.checklist) : '[]', 
+          task.tags ? JSON.stringify(task.tags) : '[]', 
+          task.image_url, task.due_date, 'list-todo', 
+          task.comments ? JSON.stringify(task.comments) : '[]', 
+          task.attachments ? JSON.stringify(task.attachments) : '[]', 
+          task.completed, task.completed_at, task.created_at
+        ]
+      );
+      restauradasCount++;
+    }
+
+    const io = getIO();
+    if (io) io.emit('eletrica_board_updated');
+
+    res.json({ 
+      success: true, 
+      message: `${restauradasCount} tarefas foram recuperadas com sucesso para a coluna "A Fazer"!` 
+    });
+
+  } catch (error) {
+    console.error('Erro na recuperação:', error);
+    res.status(500).json({ error: 'Ocorreu um erro ao tentar recuperar as tarefas.' });
+  }
+};
