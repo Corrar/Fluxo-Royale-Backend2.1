@@ -1,14 +1,27 @@
 import { Router } from 'express';
 import { 
   getTasks, createTask, updateTask, deleteTask, 
-  getLists, createList, updateList, deleteList 
+  getLists, createList, updateList, deleteList,
+  rescueOrphanedTasks,        // <-- Nova função importada
+  recoverDeletedListTasks     // <-- Nova função importada
 } from '../controllers/eletrica.controller';
 
-// CORREÇÃO: Importamos o nome exato que está no seu auth.ts!
+// Importamos o nome exato que está no seu auth.ts!
 import { authenticate } from '../middlewares/auth';
 
 const router = Router();
 
+// ============================================================================
+// ROTAS DE RECUPERAÇÃO / MANUTENÇÃO (Temporárias)
+// NOTA: Colocadas ANTES do 'authenticate' para testares fácil pelo navegador.
+// Podes apagar estas duas linhas de get() quando recuperares tudo, por segurança.
+// ============================================================================
+router.get('/rescue', rescueOrphanedTasks);
+router.get('/recover-backup', recoverDeletedListTasks);
+
+// ============================================================================
+// ROTAS PROTEGIDAS (Abaixo desta linha, todas exigem login)
+// ============================================================================
 // Usa o 'authenticate' para proteger estas rotas
 router.use(authenticate);
 
