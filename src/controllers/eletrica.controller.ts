@@ -249,20 +249,39 @@ export const deleteTask = async (req: Request, res: Response) => {
 // 1. Resgata tarefas órfãs (que estão no banco mas não aparecem na tela)
 export const rescueOrphanedTasks = async (req: Request, res: Response) => {
   try {
+    // A. Procurar a PRIMEIRA lista que existe atualmente no teu quadro
+    const listsRes = await pool.query('SELECT id, title FROM eletrica_lists ORDER BY position ASC LIMIT 1');
+    
+    let targetListId = 'list-todo';
+    let targetListName = '⏳ A Fazer';
+
+    // B. Se tiveres listas criadas, pegamos na primeira que existir
+    if (listsRes.rows.length > 0) {
+       targetListId = listsRes.rows[0].id;
+       targetListName = listsRes.rows[0].title;
+    } else {
+       // C. Se não houver NENHUMA lista, recriamos uma à força no banco de dados
+       await pool.query(
+         `INSERT INTO eletrica_lists (id, title, position) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+         ['list-todo', '📦 Recuperadas', 1]
+       );
+    }
+
+    // D. Mover TODAS as tarefas que estão perdidas para essa coluna real
     const result = await pool.query(`
       UPDATE eletrica_tasks 
-      SET list_id = 'list-todo' 
+      SET list_id = $1 
       WHERE list_id NOT IN (SELECT id FROM eletrica_lists) 
          OR list_id IS NULL
       RETURNING *;
-    `);
+    `, [targetListId]);
 
     const io = getIO();
     if (io) io.emit('eletrica_board_updated');
 
     res.json({ 
       success: true, 
-      message: `${result.rowCount} tarefas órfãs foram resgatadas com sucesso para a coluna "A Fazer"!`,
+      message: `${result.rowCount} tarefas foram resgatadas com sucesso para a coluna "${targetListName}"!`,
       tarefas_recuperadas: result.rows
     });
   } catch (error) {
@@ -290,6 +309,17 @@ export const recoverDeletedListTasks = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'O último backup não continha tarefas.' });
     }
 
+    // Procura uma lista válida para não ficarem órfãs logo após a recuperação
+    const listsRes = await pool.query('SELECT id FROM eletrica_lists ORDER BY position ASC LIMIT 1');
+    let targetListId = listsRes.rows.length > 0 ? listsRes.rows[0].id : 'list-todo';
+
+    if (listsRes.rows.length === 0) {
+       await pool.query(
+         `INSERT INTO eletrica_lists (id, title, position) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING`,
+         ['list-todo', '📦 Recuperadas', 1]
+       );
+    }
+
     let restauradasCount = 0;
 
     for (const task of tarefasApagadas) {
@@ -302,7 +332,7 @@ export const recoverDeletedListTasks = async (req: Request, res: Response) => {
           task.title, task.description, task.category, task.priority, 
           task.checklist ? JSON.stringify(task.checklist) : '[]', 
           task.tags ? JSON.stringify(task.tags) : '[]', 
-          task.image_url, task.due_date, 'list-todo', 
+          task.image_url, task.due_date, targetListId, 
           task.comments ? JSON.stringify(task.comments) : '[]', 
           task.attachments ? JSON.stringify(task.attachments) : '[]', 
           task.completed, task.completed_at, task.created_at
@@ -316,7 +346,7 @@ export const recoverDeletedListTasks = async (req: Request, res: Response) => {
 
     res.json({ 
       success: true, 
-      message: `${restauradasCount} tarefas foram recuperadas com sucesso para a coluna "A Fazer"!` 
+      message: `${restauradasCount} tarefas foram recuperadas com sucesso!` 
     });
 
   } catch (error) {
